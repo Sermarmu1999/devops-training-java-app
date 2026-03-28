@@ -8,11 +8,18 @@ def runInDocker(String image, Closure body) {
 pipeline {
   agent any
 
+  // EJERCICIO 6.3: Parámetros para activar/desactivar el CD
+  parameters {
+    booleanParam(name: 'RUN_CD', defaultValue: false, description: 'Ejecutar CD')
+  }
+
   // Se define la variable global para la imagen de herramientas
   environment {
     CI_IMAGE_NAME = "java-ci-tools:${env.BUILD_NUMBER}"
     // EJERCICIO 5: Variable con el nombre de la imagen final
     IMAGE_NAME = "contrerasadr/devops-training-java-app:0.0.1"
+    // EJERCICIO 6.4: Variables de entorno globales
+    APP_URL = "http://localhost:8084/hello" // Puerto de la app Java
   }
 
   stages {
@@ -66,6 +73,52 @@ pipeline {
         script {
           echo "Construyendo la imagen Docker de la aplicación Java..."
           docker.build(env.IMAGE_NAME, "--build-arg VERSION=0.0.1 -f devops/Dockerfile .")
+        }
+      }
+    }
+
+    // EJERCICIOS 6 al 6.5: CD con despliegue local y limpieza
+    stage('CD') {
+      // EJERCICIO 6.1: Condición de ejecución
+      when {
+        anyOf {
+          expression { return params.RUN_CD }
+          branch 'develop'
+          branch 'master'
+        }
+      }
+      steps {
+        script {
+          // EJERCICIO 6.2: Simular entorno DEV/PRO
+          env.DEPLOY_ENV = (env.BRANCH_NAME == 'master') ? 'pro' : 'dev'
+          echo "Deploying to ${env.DEPLOY_ENV}"
+          echo "CD habilitado: RUN_CD=${params.RUN_CD}, branch=${env.BRANCH_NAME}"
+          
+          // EJERCICIO 6: Docker Compose Up -> Logs
+          echo 'Iniciando despliegue local con Docker Compose...'
+          sh "docker compose -p ${env.DEPLOY_ENV} up -d"
+          
+          echo 'Esperando 5 segundos a que levante el servicio...'
+          sh 'sleep 5'
+          
+          sh "echo URL=${env.APP_URL}"
+          
+          echo 'Mostrando logs del contenedor principal...'
+          sh "docker compose -p ${env.DEPLOY_ENV} logs app"
+        }
+      }
+      // EJERCICIO 6.5: Hooks de limpieza
+      post {
+        always {
+          echo 'Ejecutando limpieza de recursos temporales...'
+          sh "docker compose -p ${env.DEPLOY_ENV} down --volumes || true"
+        }
+        success {
+          echo 'SUCCESS'
+        }
+        failure {
+          echo 'FAILURE'
+          sh "docker compose -p ${env.DEPLOY_ENV} logs || true"
         }
       }
     }
