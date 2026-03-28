@@ -1,6 +1,11 @@
 pipeline {
   agent any
 
+  // Se define la variable global para la imagen de herramientas
+  environment {
+    CI_IMAGE_NAME = "java-ci-tools:${env.BUILD_NUMBER}"
+  }
+
   stages {
     // EJERCICIO 1: Estructura básica e Información
     stage('Info') {
@@ -10,18 +15,36 @@ pipeline {
       }
     }
 
-    // EJERCICIO 2: Uso de agente Docker para ejecutar tests
-    stage('Test') {
-      // Agente específico: este stage aisla su ejecución en un contenedor de Maven
-      agent {
-        docker {
-          image 'maven:3.8.6-openjdk-11-slim'
-        }
-      }
+    // EJERCICIO 3: Construir imagen CI con make (para Java)
+    stage('CI - Build tools image') {
       steps {
         script {
-          echo 'Ejecutando tests unitarios de Java con Maven...'
-          sh 'mvn test'
+          echo 'Construyendo la imagen Docker de herramientas CI para Java...'
+          docker.build(env.CI_IMAGE_NAME, "-f devops/ci.Dockerfile .")
+        }
+      }
+    }
+
+    // EJERCICIO 3: Stage separado para Lint
+    stage('CI - Lint') {
+      steps {
+        script {
+          docker.image(env.CI_IMAGE_NAME).inside {
+            echo 'Ejecutando revisión de formato de código (Lint)...'
+            sh 'make lint'
+          }
+        }
+      }
+    }
+
+    // EJERCICIO 3: Stage separado para Test
+    stage('CI - Test') {
+      steps {
+        script {
+          docker.image(env.CI_IMAGE_NAME).inside {
+            echo 'Ejecutando tests unitarios con Maven...'
+            sh 'make test'
+          }
         }
       }
     }
