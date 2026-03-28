@@ -5,6 +5,21 @@ def runInDocker(String image, Closure body) {
     }
 }
 
+// EJERCICIO 10: "Mini librería" para Compose
+def composeUpTestDown(Map args) {
+    try {
+        echo "--> [composeUpTestDown] Ejecutando UP..."
+        sh args.up
+        
+        echo "--> [composeUpTestDown] Ejecutando TEST/VALIDACION..."
+        sh args.test
+    } finally {
+        // El bloque finally asegura que esto se ejecuta SIEMPRE
+        echo "--> [composeUpTestDown] Ejecutando DOWN (Limpieza)..."
+        sh "${args.down} || true"
+    }
+}
+
 pipeline {
   agent any
 
@@ -145,33 +160,22 @@ pipeline {
           // EJERCICIO 6.2: Simular entorno DEV/PRO
           env.DEPLOY_ENV = (env.BRANCH_NAME == 'master') ? 'pro' : 'dev'
           echo "Deploying to ${env.DEPLOY_ENV}"
-          echo "CD habilitado: RUN_CD=${params.RUN_CD}, branch=${env.BRANCH_NAME}"
-          
-          // EJERCICIO 6: Docker Compose Up -> Logs
-          echo 'Iniciando despliegue local con Docker Compose...'
-          sh "docker compose -p ${env.DEPLOY_ENV} up -d"
-          
-          echo 'Esperando 5 segundos a que levante el servicio...'
-          sh 'sleep 5'
-          
-          sh "echo URL=${env.APP_URL}"
-          
-          echo 'Mostrando logs del contenedor principal...'
-          sh "docker compose -p ${env.DEPLOY_ENV} logs app"
+
+          // EJERCICIO 10: Uso de la función pasándole un mapa (Map args)
+          composeUpTestDown(
+            up: "docker compose -p ${env.DEPLOY_ENV} up -d && sleep 5",
+            test: "echo URL=${env.APP_URL} && docker compose -p ${env.DEPLOY_ENV} logs app",
+            down: "docker compose -p ${env.DEPLOY_ENV} down --volumes"
+          )
         }
       }
       // EJERCICIO 6.5: Hooks de limpieza
       post {
-        always {
-          echo 'Ejecutando limpieza de recursos temporales...'
-          sh "docker compose -p ${env.DEPLOY_ENV} down --volumes || true"
-        }
         success {
           echo 'SUCCESS'
         }
         failure {
           echo 'FAILURE'
-          sh "docker compose -p ${env.DEPLOY_ENV} logs || true"
         }
       }
     }
