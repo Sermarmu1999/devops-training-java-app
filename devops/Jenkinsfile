@@ -7,7 +7,22 @@ pipeline {
       steps {
         echo "Job: ${env.JOB_NAME}"
         echo "Build: ${env.BUILD_NUMBER}"
-        echo "Pipeline de Java inicializado correctamente"
+      }
+    }
+
+    // EJERCICIO 2: Uso de agente Docker para ejecutar tests
+    stage('Test') {
+      // Agente específico: este stage aisla su ejecución en un contenedor de Maven
+      agent {
+        docker {
+          image 'maven:3.8.6-openjdk-11-slim'
+        }
+      }
+      steps {
+        script {
+          echo 'Ejecutando tests unitarios de Java con Maven...'
+          sh 'mvn test'
+        }
       }
     }
   }
