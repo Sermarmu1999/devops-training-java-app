@@ -1,3 +1,10 @@
+// EJERCICIO 4: Función Groovy reutilizable
+def runInDocker(String image, Closure body) {
+    docker.image(image).inside {
+        body()
+    }
+}
+
 pipeline {
   agent any
 
@@ -29,7 +36,8 @@ pipeline {
     stage('CI - Lint') {
       steps {
         script {
-          docker.image(env.CI_IMAGE_NAME).inside {
+          // EJERCICIO 4: Uso de la función Groovy
+          runInDocker(env.CI_IMAGE_NAME) {
             echo 'Ejecutando revisión de formato de código (Lint)...'
             sh 'make lint'
           }
@@ -41,7 +49,8 @@ pipeline {
     stage('CI - Test') {
       steps {
         script {
-          docker.image(env.CI_IMAGE_NAME).inside {
+          // EJERCICIO 4: Uso de la función Groovy
+          runInDocker(env.CI_IMAGE_NAME) {
             echo 'Ejecutando tests unitarios con Maven...'
             sh 'make test'
           }
