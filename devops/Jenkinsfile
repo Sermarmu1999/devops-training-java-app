@@ -13,6 +13,8 @@ pipeline {
     booleanParam(name: 'RUN_CD', defaultValue: false, description: 'Ejecutar CD')
     // EJERCICIO 7: Parámetro para push al registry
     booleanParam(name: 'ENABLE_REGISTRY_PUSH', defaultValue: false, description: 'Subir imagen al registry privado')
+    // EJERCICIO 9: Parámetro para subir a Artifactory
+    booleanParam(name: 'ENABLE_ARTIFACTORY_UPLOAD', defaultValue: false, description: 'Subir JAR a Artifactory')
   }
 
   // Se define la variable global para la imagen de herramientas
@@ -66,6 +68,34 @@ pipeline {
           runInDocker(env.CI_IMAGE_NAME) {
             echo 'Ejecutando tests unitarios con Maven...'
             sh 'make test'
+          }
+        }
+      }
+    }
+
+    // EJERCICIO 9: Subir JAR a Artifactory
+    stage('CI - Upload jar (opcional)') {
+      when {
+        expression { return params.ENABLE_ARTIFACTORY_UPLOAD }
+      }
+      steps {
+        script {
+          echo "Empaquetando la aplicación Java..."
+          runInDocker(env.CI_IMAGE_NAME) {
+            sh 'mvn -q -DskipTests package'
+          }
+          
+          echo "Subiendo el JAR a Artifactory con curl..."
+          withCredentials([usernamePassword(credentialsId: 'artifactory-creds', passwordVariable: 'ART_PASS', usernameVariable: 'ART_USER')]) {
+            sh '''
+              ART_URL="http://artifactory:8081/artifactory"
+              ART_REPO="libs-release-local"
+              ART_PATH="devops-training-java-app/${BUILD_NUMBER}"
+              JAR_FILE=$(ls target/*.jar | head -n 1)
+              
+              curl -u "${ART_USER}:${ART_PASS}" -T "${JAR_FILE}" \
+                "${ART_URL}/${ART_REPO}/${ART_PATH}/$(basename ${JAR_FILE})"
+            '''
           }
         }
       }
