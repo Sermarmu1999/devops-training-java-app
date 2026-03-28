@@ -1,24 +1,5 @@
-// EJERCICIO 4: Función Groovy reutilizable
-def runInDocker(String image, Closure body) {
-    docker.image(image).inside {
-        body()
-    }
-}
-
-// EJERCICIO 10: "Mini librería" para Compose
-def composeUpTestDown(Map args) {
-    try {
-        echo "--> [composeUpTestDown] Ejecutando UP..."
-        sh args.up
-        
-        echo "--> [composeUpTestDown] Ejecutando TEST/VALIDACION..."
-        sh args.test
-    } finally {
-        // El bloque finally asegura que esto se ejecuta SIEMPRE
-        echo "--> [composeUpTestDown] Ejecutando DOWN (Limpieza)..."
-        sh "${args.down} || true"
-    }
-}
+// EJERCICIO 12: Importar la librería compartida de Jenkins
+@Library('iac-devops-lib') _
 
 pipeline {
   agent any
@@ -35,20 +16,25 @@ pipeline {
   // Se define la variable global para la imagen de herramientas
   environment {
     CI_IMAGE_NAME = "java-ci-tools:${env.BUILD_NUMBER}"
-    // EJERCICIO 5: Variable con el nombre de la imagen final
-    IMAGE_NAME = "contrerasadr/devops-training-java-app:0.0.1"
     // EJERCICIO 6.4: Variables de entorno globales
     APP_URL = "http://localhost:8084/hello" // Puerto de la app Java
-    // EJERCICIO 7: Variable con la ruta del registry local para Java
-    REGISTRY_IMAGE = "local-registry:5000/contrerasadr/devops-training-java-app:${env.BUILD_NUMBER}"
   }
 
   stages {
-    // EJERCICIO 1: Estructura básica e Información
-    stage('Info') {
+    // EJERCICIO 12: Usar readVersion para cargar variables de forma dinámica
+    stage('Info & Setup') {
       steps {
-        echo "Job: ${env.JOB_NAME}"
-        echo "Build: ${env.BUILD_NUMBER}"
+        script {
+          echo "Job: ${env.JOB_NAME}"
+          echo "Build: ${env.BUILD_NUMBER}"
+          
+          // Leer versión desde el archivo VERSION en la raíz del repo de Java
+          env.APP_VERSION = devopsLib.readVersion('VERSION')
+          env.IMAGE_NAME = "contrerasadr/devops-training-java-app:${env.APP_VERSION}"
+          env.REGISTRY_IMAGE = "local-registry:5000/${env.IMAGE_NAME}"
+          
+          echo "Versión de la App Java cargada: ${env.APP_VERSION}"
+        }
       }
     }
 
@@ -66,8 +52,8 @@ pipeline {
     stage('CI - Lint') {
       steps {
         script {
-          // EJERCICIO 4: Uso de la función Groovy
-          runInDocker(env.CI_IMAGE_NAME) {
+          // EJERCICIO 12: Usar función de la librería compartida
+          devopsLib.runInDocker(env.CI_IMAGE_NAME) {
             echo 'Ejecutando revisión de formato de código (Lint)...'
             sh 'make lint'
           }
@@ -79,8 +65,8 @@ pipeline {
     stage('CI - Test') {
       steps {
         script {
-          // EJERCICIO 4: Uso de la función Groovy
-          runInDocker(env.CI_IMAGE_NAME) {
+          // EJERCICIO 12: Usar función de la librería compartida
+          devopsLib.runInDocker(env.CI_IMAGE_NAME) {
             echo 'Ejecutando tests unitarios con Maven...'
             sh 'make test'
           }
@@ -96,7 +82,8 @@ pipeline {
       steps {
         script {
           echo "Empaquetando la aplicación Java..."
-          runInDocker(env.CI_IMAGE_NAME) {
+          // EJERCICIO 12: Usar función de la librería compartida
+          devopsLib.runInDocker(env.CI_IMAGE_NAME) {
             sh 'mvn -q -DskipTests package'
           }
           
@@ -161,8 +148,15 @@ pipeline {
           env.DEPLOY_ENV = (env.BRANCH_NAME == 'master') ? 'pro' : 'dev'
           echo "Deploying to ${env.DEPLOY_ENV}"
 
-          // EJERCICIO 10: Uso de la función pasándole un mapa (Map args)
-          composeUpTestDown(
+          // EJERCICIO 12: Actualizar el docker-compose.yml con la imagen nueva
+          devopsLib.setComposeServiceImage(
+            composeFile: 'docker-compose.yml',
+            service: 'app',
+            image: env.IMAGE_NAME
+          )
+          
+          // EJERCICIO 12: Usar la función de CD de la librería compartida
+          devopsLib.composeUpTestDown(
             up: "docker compose -p ${env.DEPLOY_ENV} up -d && sleep 5",
             test: "echo URL=${env.APP_URL} && docker compose -p ${env.DEPLOY_ENV} logs app",
             down: "docker compose -p ${env.DEPLOY_ENV} down --volumes"
@@ -171,6 +165,9 @@ pipeline {
       }
       // EJERCICIO 6.5: Hooks de limpieza
       post {
+        always {
+          sh "docker rmi ${env.IMAGE_NAME} || true"
+        }
         success {
           echo 'SUCCESS'
         }
