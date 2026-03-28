@@ -11,6 +11,8 @@ pipeline {
   // EJERCICIO 6.3: Parámetros para activar/desactivar el CD
   parameters {
     booleanParam(name: 'RUN_CD', defaultValue: false, description: 'Ejecutar CD')
+    // EJERCICIO 7: Parámetro para push al registry
+    booleanParam(name: 'ENABLE_REGISTRY_PUSH', defaultValue: false, description: 'Subir imagen al registry privado')
   }
 
   // Se define la variable global para la imagen de herramientas
@@ -20,6 +22,8 @@ pipeline {
     IMAGE_NAME = "contrerasadr/devops-training-java-app:0.0.1"
     // EJERCICIO 6.4: Variables de entorno globales
     APP_URL = "http://localhost:8084/hello" // Puerto de la app Java
+    // EJERCICIO 7: Variable con la ruta del registry local para Java
+    REGISTRY_IMAGE = "local-registry:5000/contrerasadr/devops-training-java-app:${env.BUILD_NUMBER}"
   }
 
   stages {
@@ -73,6 +77,25 @@ pipeline {
         script {
           echo "Construyendo la imagen Docker de la aplicación Java..."
           docker.build(env.IMAGE_NAME, "--build-arg VERSION=0.0.1 -f devops/Dockerfile .")
+        }
+      }
+    }
+
+    // EJERCICIO 7: Push a un registry privado
+    stage('Push image') {
+      when {
+        expression { return params.ENABLE_REGISTRY_PUSH }
+      }
+      steps {
+        script {
+          echo "Etiquetando la imagen Java para el registry local..."
+          sh "docker tag ${env.IMAGE_NAME} ${env.REGISTRY_IMAGE}"
+          
+          echo "Autenticando y subiendo al registry..."
+          withCredentials([usernamePassword(credentialsId: 'local-registry-creds', passwordVariable: 'REG_PASS', usernameVariable: 'REG_USER')]) {
+            sh "docker login -u ${REG_USER} -p ${REG_PASS} local-registry:5000"
+            sh "docker push ${env.REGISTRY_IMAGE}"
+          }
         }
       }
     }
