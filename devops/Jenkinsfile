@@ -11,6 +11,8 @@ pipeline {
   // Se define la variable global para la imagen de herramientas
   environment {
     CI_IMAGE_NAME = "java-ci-tools:${env.BUILD_NUMBER}"
+    // EJERCICIO 5: Variable con el nombre de la imagen final
+    IMAGE_NAME = "contrerasadr/devops-training-java-app:0.0.1"
   }
 
   stages {
@@ -54,6 +56,16 @@ pipeline {
             echo 'Ejecutando tests unitarios con Maven...'
             sh 'make test'
           }
+        }
+      }
+    }
+
+    // EJERCICIO 5: Construir la imagen Docker en CI
+    stage('Build image') {
+      steps {
+        script {
+          echo "Construyendo la imagen Docker de la aplicación Java..."
+          docker.build(env.IMAGE_NAME, "--build-arg VERSION=0.0.1 -f devops/Dockerfile .")
         }
       }
     }
