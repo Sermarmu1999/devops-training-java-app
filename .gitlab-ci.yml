@@ -20,3 +20,22 @@ ci:info:
     - echo "Commit SHA (predefinida): $CI_COMMIT_SHA"
     - echo "Host del Registry (global): $REGISTRY_HOST"
     - echo "Ruta de Artifactory (global): $ARTIFACTORY_URL/$ARTIFACTORY_REPO"
+
+# EJERCICIO 3: CI con contenedores (Docker como agente) - Ejecutar lint y test dentro de la imagen de herramientas CI
+ci:tests:
+  stage: ci
+  image: docker:27 # Imagen base de Docker
+  services:
+    - docker:27-dind # Servicio Docker-in-Docker anidado
+  variables:
+    DOCKER_TLS_CERTDIR: "" 
+    CI_TOOLS_IMAGE: "java-ci-tools:$CI_COMMIT_SHA"
+  script:
+    - echo "=== Ejercicio 3: Construyendo imagen Maven de CI ==="
+    # Se construye la imagen basada en el Dockerfile de CI de Java
+    - docker build -t $CI_TOOLS_IMAGE -f devops/ci.Dockerfile .
+    
+    - echo "=== Ejecutando validaciones dentro del contenedor ==="
+    # Se ejecuta el linter y los tests mapeando el código fuente
+    - docker run --rm -v $(pwd):/app -w /app $CI_TOOLS_IMAGE make lint
+    - docker run --rm -v $(pwd):/app -w /app $CI_TOOLS_IMAGE make test
