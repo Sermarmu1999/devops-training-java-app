@@ -63,3 +63,20 @@ stages:
               echo "=== Ejecutando Test dentro del contenedor ==="
               docker run --rm -v $(System.DefaultWorkingDirectory):/app -w /app java-ci-tools:$(Build.SourceVersion) make test
             displayName: 'Run Make Test'
+
+      # EJERCICIO 5: Build de imagen Docker y publicación opcional
+      - job: CIBuild
+        displayName: 'Build y Push Imagen (Java)'
+        dependsOn: CITests
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - script: |
+              echo "=== Ejercicio 5: Construyendo imagen Docker final ==="
+              docker build -t $(IMAGE_REPO):$(Build.SourceVersion) -f devops/Dockerfile .
+              
+              echo "=== Publicación Opcional: Push a Registry Local ==="
+              # Simulamos la subida al local-registry definido en la estrategia local
+              docker tag $(IMAGE_REPO):$(Build.SourceVersion) local-registry:5000/$(IMAGE_REPO):$(Build.SourceVersion)
+              docker push local-registry:5000/$(IMAGE_REPO):$(Build.SourceVersion) || true
+            displayName: 'Docker Build & Push'
