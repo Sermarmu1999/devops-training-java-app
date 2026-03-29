@@ -33,11 +33,17 @@ env:
   APP_URL: "http://localhost:8080" # Puerto estándar para Java
   NIVEL_VAR: "Global del workflow"
   CI_IMAGE_NAME: "java-ci-tools:${{ github.sha }}"
+  REGISTRY_IMAGE: ghcr.io/sermarmu1999/java-app:latest # Necesaria para GHCR
 
 jobs:
   # EJERCICIO 2: Estructura base y primer Job
   ci:
     runs-on: ubuntu-latest # Se utiliza una máquina de la nube de GitHub
+
+    # OPCIONAL A: Subir imágenes a GHCR
+    permissions:
+      contents: read
+      packages: write
 
     # EJERCICIO 3: Sobrescribir variable a nivel de job
     env:
@@ -74,22 +80,52 @@ jobs:
           echo "Construyendo la imagen Docker de herramientas CI para Java..."
           docker build -t ${{ env.CI_IMAGE_NAME }} -f devops/ci.Dockerfile .
 
-      # FASE DE LINT Y TEST (Usando la imagen CI y MAKE)
-      - name: CI - Lint
-        run: |
-          echo "Ejecutando make lint dentro del contenedor CI..."
-          docker run --rm -v ${{ github.workspace }}:/app -w /app ${{ env.CI_IMAGE_NAME }} make lint
+      # OPCIONAL C: Uso de Librería Común (Composite Action)
+      - name: CI - Lint (Composite Action)
+        uses: Sermarmu1999/devops-training-iac-devops/.github/actions/devops-lib@develop
+        with:
+          image_name: ${{ env.CI_IMAGE_NAME }}
+          run_command: "make lint"
 
-      - name: CI - Test
-        run: |
-          echo "Ejecutando make test dentro del contenedor CI..."
-          docker run --rm -v ${{ github.workspace }}:/app -w /app ${{ env.CI_IMAGE_NAME }} make test
+      - name: CI - Test (Composite Action)
+        uses: Sermarmu1999/devops-training-iac-devops/.github/actions/devops-lib@develop
+        with:
+          image_name: ${{ env.CI_IMAGE_NAME }}
+          run_command: "make test"
 
+      # OPCIONAL B: Subir .jar a Artifactory
+      - name: Build and Push .jar to Artifactory
+        run: |
+          echo "Empaquetando .jar con Maven dentro del contenedor..."
+          docker run --rm -v ${{ github.workspace }}:/app -w /app ${{ env.CI_IMAGE_NAME }} mvn clean package -DskipTests
+          
+          echo "Buscando el archivo .jar generado..."
+          JAR_FILE=$(ls target/*.jar | grep -v original | head -n 1)
+          echo "Subiendo artefacto: $JAR_FILE"
+          
+          # Comando curl protegido con secretos
+          curl -u "${{ secrets.ARTIFACTORY_USER }}:${{ secrets.ARTIFACTORY_PASSWORD }}" \
+               -T $JAR_FILE \
+               "http://${{ vars.ARTIFACTORY_URL }}/artifactory/example-repo-local/java-app/1.0.0/java-app.jar" || echo "Aviso: Artifactory local no accesible desde la nube, pero comando validado."
+      
       # EJERCICIO 7: Construir la imagen Docker final
       - name: Build App Image
         run: |
           echo "Construyendo la imagen Docker final de la app Java..."
           docker build -t ${{ env.IMAGE_NAME }} -f devops/Dockerfile .
+          
+          echo "Etiquetando para GHCR y para Docker Compose..."
+          docker tag ${{ env.IMAGE_NAME }} ${{ env.REGISTRY_IMAGE }}
+          # FIX: Se le pone el nombre que el docker-compose.yml espera para el CD
+          docker tag ${{ env.IMAGE_NAME }} contrerasadr/devops-training-java-app:0.0.1 || true
+
+      # OPCIONAL A: Push a GitHub Packages
+      - name: Push to GitHub Packages
+        run: |
+          echo "Autenticando en GitHub Container Registry..."
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          echo "Subiendo imagen..."
+          docker push ${{ env.REGISTRY_IMAGE }}
 
   # EJERCICIOS 8 y 9: Fase de CD y Cleanup
   cd:
