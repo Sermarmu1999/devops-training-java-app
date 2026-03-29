@@ -41,3 +41,25 @@ stages:
               echo "Parámetro RUN_CD: ${{ parameters.RUN_CD }}"
               echo "Variable Global IMAGE_REPO: $(IMAGE_REPO)"
             displayName: 'Imprimir contexto de ejecución'
+    
+      # EJERCICIO 4: Ejecutar Lint/Test dentro de imagen CI (Java)
+      - job: CITests
+        displayName: 'Validaciones de Calidad (Lint & Test)'
+        dependsOn: InfoJob
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - script: |
+              echo "=== Ejercicio 4: Construyendo imagen CI de Java ==="
+              docker build -t java-ci-tools:$(Build.SourceVersion) -f devops/ci.Dockerfile .
+            displayName: 'Build Imagen CI Tools (Maven)'
+          
+          - script: |
+              echo "=== Ejecutando Lint dentro del contenedor ==="
+              docker run --rm -v $(System.DefaultWorkingDirectory):/app -w /app java-ci-tools:$(Build.SourceVersion) make lint
+            displayName: 'Run Make Lint'
+
+          - script: |
+              echo "=== Ejecutando Test dentro del contenedor ==="
+              docker run --rm -v $(System.DefaultWorkingDirectory):/app -w /app java-ci-tools:$(Build.SourceVersion) make test
+            displayName: 'Run Make Test'
