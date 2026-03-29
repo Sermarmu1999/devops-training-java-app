@@ -67,3 +67,26 @@ jobs:
           echo "=== EJERCICIO 4: Parámetros manuales ==="
           echo "RUN_CD activado?: ${{ inputs.RUN_CD }}"
           echo "Entorno seleccionado: ${{ inputs.DEPLOY_ENV }}"
+
+      # EJERCICIO 6: Construir imagen de herramientas CI
+      - name: Build CI tools image
+        run: |
+          echo "Construyendo la imagen Docker de herramientas CI para Java..."
+          docker build -t ${{ env.CI_IMAGE_NAME }} -f devops/ci.Dockerfile .
+
+      # FASE DE LINT Y TEST (Usando la imagen CI y MAKE)
+      - name: CI - Lint
+        run: |
+          echo "Ejecutando make lint dentro del contenedor CI..."
+          docker run --rm -v ${{ github.workspace }}:/app -w /app ${{ env.CI_IMAGE_NAME }} make lint
+
+      - name: CI - Test
+        run: |
+          echo "Ejecutando make test dentro del contenedor CI..."
+          docker run --rm -v ${{ github.workspace }}:/app -w /app ${{ env.CI_IMAGE_NAME }} make test
+
+      # EJERCICIO 7: Construir la imagen Docker final
+      - name: Build App Image
+        run: |
+          echo "Construyendo la imagen Docker final de la app Java..."
+          docker build -t ${{ env.IMAGE_NAME }} -f devops/Dockerfile .
