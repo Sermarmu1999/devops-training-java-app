@@ -38,7 +38,7 @@ env:
 jobs:
   # EJERCICIO 2: Estructura base y primer Job
   ci:
-    runs-on: ubuntu-latest # Se utiliza una máquina de la nube de GitHub
+    runs-on: [self-hosted, linux, docker] # EJERCICIO FINAL: Se utiliza una máquina local
 
     # OPCIONAL A: Subir imágenes a GHCR
     permissions:
@@ -130,7 +130,7 @@ jobs:
   # EJERCICIOS 8 y 9: Fase de CD y Cleanup
   cd:
     needs: ci # Solo se ejecuta si el CI termina bien
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, docker] # EJERCICIO FINAL: Se utiliza una máquina local
     # Se ejecuta si: Se marca RUN_CD manualmente O se está en develop/master
     if: ${{ inputs.RUN_CD == true || github.ref_name == 'develop' || github.ref_name == 'master' }}
     environment: ${{ github.ref_name == 'master' && 'PRO' || 'DEV' }}
