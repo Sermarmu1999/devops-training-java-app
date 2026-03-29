@@ -1,0 +1,69 @@
+name: Java CI/CD Pipeline
+
+# EJERCICIO 1: Triggers (Cuándo se ejecuta)
+on:
+  push:
+    branches:
+      - '**' # Se ejecuta al hacer push en cualquier rama
+  pull_request:
+    branches:
+      - develop
+      - master
+  
+  # EJERCICIO 4: Inputs manuales (Parámetros)
+  workflow_dispatch:
+    inputs:
+      RUN_CD:
+        description: 'Ejecutar CD'
+        required: true
+        type: boolean
+        default: false
+      DEPLOY_ENV:
+        description: 'Entorno de despliegue'
+        required: true
+        type: choice
+        options:
+          - DEV
+          - PRO
+        default: DEV
+
+# EJERCICIO 3: Variables de entorno a nivel global
+env:
+  IMAGE_NAME: "java-app:latest"
+  APP_URL: "http://localhost:8080" # Puerto estándar para Java
+  NIVEL_VAR: "Global del workflow"
+  CI_IMAGE_NAME: "java-ci-tools:${{ github.sha }}"
+
+jobs:
+  # EJERCICIO 2: Estructura base y primer Job
+  ci:
+    runs-on: ubuntu-latest # Se utiliza una máquina de la nube de GitHub
+
+    # EJERCICIO 3: Sobrescribir variable a nivel de job
+    env:
+      NIVEL_VAR: "Sobrescrita dentro del job CI"
+    
+    steps:
+      # Paso obligatorio para que GitHub descargue el código en la máquina
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step de información
+      - name: Info
+        run: |
+          echo "Rama: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Sistema Operativo: ${{ runner.os }}"
+          echo "Nombre del Runner: ${{ runner.name }}"
+
+      # EJERCICIOS 3 y 4: Paso para validar que todo funciona
+      - name: Validar Variables y Parámetros
+        run: |
+          echo "=== EJERCICIO 3: Variables ==="
+          echo "Imagen a construir: ${{ env.IMAGE_NAME }}"
+          echo "URL de la App: ${{ env.APP_URL }}"
+          echo "Nivel de la variable: ${{ env.NIVEL_VAR }}"
+          
+          echo "=== EJERCICIO 4: Parámetros manuales ==="
+          echo "RUN_CD activado?: ${{ inputs.RUN_CD }}"
+          echo "Entorno seleccionado: ${{ inputs.DEPLOY_ENV }}"
