@@ -90,3 +90,38 @@ jobs:
         run: |
           echo "Construyendo la imagen Docker final de la app Java..."
           docker build -t ${{ env.IMAGE_NAME }} -f devops/Dockerfile .
+
+  # EJERCICIOS 8 y 9: Fase de CD y Cleanup
+  cd:
+    needs: ci # Solo se ejecuta si el CI termina bien
+    runs-on: ubuntu-latest
+    # Se ejecuta si: Se marca RUN_CD manualmente O se está en develop/master
+    if: ${{ inputs.RUN_CD == true || github.ref_name == 'develop' || github.ref_name == 'master' }}
+    environment: ${{ github.ref_name == 'master' && 'PRO' || 'DEV' }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Ejercicio 8: Despliegue con Docker Compose
+      - name: Deploy con Docker Compose
+        run: |
+          echo "Desplegando entorno: ${{ github.ref_name == 'master' && 'PRO' || 'DEV' }}"
+          # Definimos nombre de proyecto para aislar contenedores
+          export PROJECT_NAME=${{ github.ref_name == 'master' && 'pro-java' || 'dev-java' }}
+          
+          # Se simula el despliegue levantando el stack
+          docker compose -p $PROJECT_NAME up -d
+          
+          echo "Validando el estado de la aplicación..."
+          docker compose -p $PROJECT_NAME ps
+          sleep 5
+          docker compose -p $PROJECT_NAME logs app
+
+      # Ejercicio 9: Cleanup (Limpieza)
+      - name: Cleanup de recursos
+        if: always() # Se ejecuta aunque el paso anterior falle
+        run: |
+          echo "Limpiando contenedores y volúmenes efímeros..."
+          export PROJECT_NAME=${{ github.ref_name == 'master' && 'pro-java' || 'dev-java' }}
+          docker compose -p $PROJECT_NAME down --volumes || true
